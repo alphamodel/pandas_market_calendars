@@ -6,6 +6,7 @@ from pandas.util.testing import assert_frame_equal, assert_index_equal
 
 import pandas_market_calendars as mcal
 from pandas_market_calendars.exchange_calendar_nyse import NYSEExchangeCalendar
+from pandas_market_calendars.exchange_calendar_sse import SSEExchangeCalendar
 from tests.test_market_calendar import FakeCalendar
 
 
@@ -188,6 +189,38 @@ def test_date_range_minute():
     for x in ['2016-12-13 11:19', '2016-12-13 12:01', '2016-12-14 08:59', '2016-12-14 11:41']:
         assert pd.Timestamp(x, tz=cal.tz) not in actual
 
+def test_date_range_minute_with_lunch_time():
+    sse = SSEExchangeCalendar()
+    sch = sse.schedule('2019-11-05', '2019-11-05')
+    # left closed case
+    expected = pd.DatetimeIndex(['2019-11-05 01:30:00+00:00', '2019-11-05 01:45:00+00:00',
+               '2019-11-05 02:00:00+00:00', '2019-11-05 02:15:00+00:00',
+               '2019-11-05 02:30:00+00:00', '2019-11-05 02:45:00+00:00',
+               '2019-11-05 03:00:00+00:00', '2019-11-05 03:15:00+00:00',
+               '2019-11-05 05:00:00+00:00', '2019-11-05 05:15:00+00:00',
+               '2019-11-05 05:30:00+00:00', '2019-11-05 05:45:00+00:00',
+               '2019-11-05 06:00:00+00:00', '2019-11-05 06:15:00+00:00',
+               '2019-11-05 06:30:00+00:00', '2019-11-05 06:45:00+00:00'],
+              dtype='datetime64[ns, UTC]')
+    actual = mcal.date_range(sch, frequency='15min', closed='left', force_close=False, hint_exchange=sse)
+    assert_index_equal(actual, expected)
+
+    # right closed case
+    expected = pd.DatetimeIndex(['2019-11-05 01:45:00+00:00', '2019-11-05 02:00:00+00:00',
+               '2019-11-05 02:15:00+00:00', '2019-11-05 02:30:00+00:00',
+               '2019-11-05 02:45:00+00:00', '2019-11-05 03:00:00+00:00',
+               '2019-11-05 03:15:00+00:00', '2019-11-05 03:30:00+00:00',
+               '2019-11-05 05:15:00+00:00', '2019-11-05 05:30:00+00:00',
+               '2019-11-05 05:45:00+00:00', '2019-11-05 06:00:00+00:00',
+               '2019-11-05 06:15:00+00:00', '2019-11-05 06:30:00+00:00',
+               '2019-11-05 06:45:00+00:00', '2019-11-05 07:00:00+00:00'],
+              dtype='datetime64[ns, UTC]')
+    actual = mcal.date_range(sch, frequency='15min', force_close=False, hint_exchange=sse)
+    assert_index_equal(actual, expected)
+
+    # force close case
+    actual = mcal.date_range(sch, frequency='15min', force_close=True, hint_exchange=sse)
+    assert_index_equal(actual, expected)
 
 def test_merge_schedules():
     cal1 = FakeCalendar()
