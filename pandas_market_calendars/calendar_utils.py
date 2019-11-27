@@ -3,64 +3,56 @@ Utilities to use with market_calendars
 """
 import pandas as pd
 
+################## >>> Deprecated (remove in future releases)
+import warnings
+from collections.abc import MutableMapping
+from . import calendar_registry
 
-# TODO: remove the deprecated code
-# >>> Deprecated (remove in future releases)
-# import warnings
-# from collections.abc import MutableMapping
-#
-#
-# from . import calendar_registry
-#
-#
-# class DeprecatedRegistry(MutableMapping):
-#
-#     def __init__(self):
-#         self._dict = calendar_registry.MarketCalendar._regmeta_class_registry
-#
-#     def _warn(self):
-#         warnings.warn(
-#             """
-#             This dictionary will be removed from calendar_utils in future releases.
-#             Market Calendar's are registered automatically and there is no longer any
-#             need to access the registry directly."""
-#         )
-#
-#     def __getitem__(self, key):
-#         self._warn()
-#         return self._dict[key]
-#
-#     def __setitem__(self, key, value):
-#         self._warn()
-#         self._dict[key] = value
-#
-#     def __delitem__(self, key):
-#         self._warn()
-#         del self._dict[key]
-#
-#     def __iter__(self):
-#         self._warn()
-#         return iter(self._dict)
-#
-#     def __len__(self):
-#         self._warn()
-#         return len(self._dict)
-#
-#
-# _calendars = _aliases = DeprecatedRegistry()
-#
-#
-# def get_calendar(*args, **kwargs):
-#     warnings.warn(
-#         """
-#         get_calendar has moved from calendar_utils to market_calendar.
-#         It will be removed from calendar_utils in future releases.""",
-#         DeprecationWarning
-#     )
-#     calendar_registry.get_calendar(*args, **kwargs)
-#
-# <<< Deprecated (remove in future releases)
+class DeprecatedRegistry(MutableMapping):
 
+    def __init__(self):
+        self._dict = calendar_registry.MarketCalendar._regmeta_class_registry
+
+    def _warn(self):
+        warnings.warn(
+            """
+            This dictionary will be removed from calendar_utils in future releases. 
+            Market Calendar's are registered automatically and there is no longer any 
+            need to access the registry directly."""
+        )
+
+    def __getitem__(self, key):
+        self._warn()
+        return self._dict[key]
+
+    def __setitem__(self, key, value):
+        self._warn()
+        self._dict[key] = value
+
+    def __delitem__(self, key):
+        self._warn()
+        del self._dict[key]
+
+    def __iter__(self):
+        self._warn()
+        return iter(self._dict)
+
+    def __len__(self):
+        self._warn()
+        return len(self._dict)
+
+_calendars = _aliases = DeprecatedRegistry()
+
+def get_calendar(*args,**kwargs):
+    warnings.warn(
+            """
+            get_calendar has moved from calendar_utils to market_calendar. 
+            It will be removed from calendar_utils in future releases.""",
+            DeprecationWarning
+        )
+    calendar_registry.get_calendar(*args,**kwargs)
+
+################## <<< Deprecated (remove in future releases)
 
 def merge_schedules(schedules, how='outer'):
     """
@@ -98,7 +90,7 @@ def convert_freq(index, frequency):
     return pd.DataFrame(index=index).asfreq(frequency).index
 
 
-def date_range(schedule, frequency, closed='right', force_close=True, **kwargs):
+def date_range(schedule, frequency, closed='right', force_close=True, hint_exchange=None, **kwargs):
     """
     Given a schedule will return a DatetimeIndex will all of the valid datetime at the frequency given.
     The schedule values are assumed to be in UTC.
@@ -109,6 +101,7 @@ def date_range(schedule, frequency, closed='right', force_close=True, **kwargs):
       results should only include the close for each bar.
     :param force_close: if True then the close of the day will be included even if it does not fall on an even
       frequency. If False then the market close for the day may not be included in the results
+    :param hint_exchange: remove lunch time if any based on hint_exchange.
     :param kwargs: arguments that will be passed to the pandas date_time
     :return: DatetimeIndex
     """
@@ -123,6 +116,18 @@ def date_range(schedule, frequency, closed='right', force_close=True, **kwargs):
             if row.market_close not in dates:
                 dates = dates.insert(len(dates), row.market_close)
         ranges.append(dates)
+
+    if hint_exchange is not None:
+        new_ranges = []
+        for timestamp in ranges:
+            localtime = timestamp.tz_convert(hint_exchange.tz).time
+            if closed == 'right':
+                new_ranges.append(timestamp[(hint_exchange.lunch_start >= localtime) | (localtime > hint_exchange.lunch_end)])
+            elif closed == 'left':
+                new_ranges.append(timestamp[(hint_exchange.lunch_start > localtime) | (localtime >= hint_exchange.lunch_end)])
+            else:
+                new_ranges.append(timestamp[(hint_exchange.lunch_start >= localtime) | (localtime >= hint_exchange.lunch_end)])
+        ranges = new_ranges
 
     index = pd.DatetimeIndex([], tz='UTC')
     return index.union_many(ranges)
